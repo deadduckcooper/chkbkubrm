@@ -1,4 +1,4 @@
-# @(#) Version 2021.12.27
+# @(#) Version 2021.12.30
 #
 # When calling this program you have the option to pass the parms of
 # LAST This will query the BRMS database for the last save job that has run
@@ -12,8 +12,10 @@ ifsdir=`pwd`
 ctlg=RYAN                        #Name of BRMS Control Group to run
 log=strbkubrm.log                #Main log file for this job
 out=strbkubrm.out                #Used to capture the job information
+job=''                           #Auto generated later. Adds single quotes around jobuc for SQL statments
 jobuc=''                         #Upper case job information used in SQL statments
 joblc=''                         #Lower case job informaton used in qsh statments
+splnum=''                        #Auto generated lower in the script. Finds the Spool File Number for jobuc
 file1=fulljoblog.txt             #Spool file with junk removed from it
 file2=dsjoblog.txt               #Spool file with junk removed and blank spaces added before each MSGID
 joblog=joblog.txt                #Job Log results
@@ -25,22 +27,23 @@ archivehstlog=archivehstlog.txt  #Historical archive History Log
 brmlog=brmlog.txt                #Display BRM LOG results
 brmlogtmp=brmlog.tmp             #Temp file
 archivebrmlog=archivebrmlog.txt  #Historical archive BRMS Log
-msgidtmp=msgidtmp.tmp
-msgidlist=msgidlist.txt
-emaillist="('ryan.cooper@siriuscom.com')"
+msgidtmp=msgidtmp.tmp            #Temp list of all MSGIDs found in job log
+msgidlist=msgidlist.txt          #List of all MSGIDs found in joblog
+
 
 # Special Vars 
-numdays='1'                                                            #Number of days to search BRMS history for last save job
-tellme="CPFA09E BRM14A1 BRM10A1"                                       #Tell me how many times a MSGID appers in the Job Log
-#omitjoblog="'CPF0000'"                                                 #MSGIDs to ignore from the Job Log
-omitjoblog="BRM10A1|BRM14A1|BRM15A7|CPC2402|CPFA09E|CPD37C3|CPD384E"  #Example MSGIDs to ignore from the Job Log
-joblogsev='20'                                                         #Severity filter for the Job Log
-#omithstlog="'CPF0000'"                                                 #MSGIDs to ignore from the History Log
-omithstlog="'BRM14A1','BRM10A1'"                                      #Example MSGIDs to ignore from the History Log
-hstlogsev='20'                                                         #Severity filter for the History Log
-#omitbrmlog="'CPF0000'"                                                 #MSGIDs to ignore from the BRMS Log
-omitbrmlog="'BRM14A1','BRM10A1'"                                      #Example MSGIDs to ignore from the BRMS Log
-brmlogsev='20'                                                         #Severity filter for the BRMS Log
+emaillist="('ryan.cooper@siriuscom.com')"
+#emaillist="('email.address1@example.com') ('email.address2@example.com')"  #Example of multipal email address format
+numdays='1'                                                                 #Number of days to search BRMS history for last save job
+omitjoblog="'CPF0000'"                                                      #MSGIDs to ignore from the Job Log
+#omitjoblog="BRM10A1|BRM14A1|BRM15A7"                                       #Example MSGIDs to ignore from the Job Log
+joblogsev='10'                                                              #Severity filter for the Job Log
+omithstlog="'CPF0000'"                                                      #MSGIDs to ignore from the History Log
+#omithstlog="'BRM14A1','BRM10A1'"                                           #Example MSGIDs to ignore from the History Log
+hstlogsev='10'                                                              #Severity filter for the History Log
+omitbrmlog="'CPF0000'"                                                      #MSGIDs to ignore from the BRMS Log
+#omitbrmlog="'BRM14A1','BRM10A1'"                                           #Example MSGIDs to ignore from the BRMS Log
+brmlogsev='10'                                                              #Severity filter for the BRMS Log
 
 # Cleanup of previous runs
 rm $ifsdir/$log
@@ -92,16 +95,16 @@ setccsid 1208 $ifsdir/$msgidtmp
 
 date >$log
 
-# Check for BRMS SQL Services enabled.
-system "DSPOBJD OBJ(QUSRBRM/LOG_INFO) OBJTYPE(*FILE)"
+echo "Checking for BRMS SQL Services enabled" >>$log
+system "DSPOBJD OBJ(QUSRBRM/LOG_INFO) OBJTYPE(*FILE)" >>/dev/null
 if test $? == 1
- then system "INZBRM OPTION(*SQLSRVINZ)"
+ then system "INZBRM OPTION(*SQLSRVINZ)" >>$log 2>&1
   if test $? == 1
-   then echo "Not able to INZ BRMS for SQL Services, Check PTF prereqs again"
+   then echo "Not able to INZ BRMS for SQL Services, Check PTF prereqs again" >>$log
    exit
-   else echo "INZ of BRMS for SQL Services completed"
+   else echo "INZ of BRMS for SQL Services completed" >>$log
   fi
- else echo "BRMS SQL Services already enabled"
+ else echo "BRMS SQL Services already enabled" >>$log
 fi
 
 echo "Checking job information override" >>$log
@@ -110,8 +113,8 @@ if [[ "$1" == 'LAST' ]]
  jobuc=`db2 "SELECT DISTINCT QUALIFIED_JOB_NAME, MESSAGE_TIMESTAMP FROM QUSRBRM.BRMS_LOG_INFO WHERE AREA ='BACKUP' AND MESSAGE_TIMESTAMP >= current timestamp - $numdays day ORDER BY MESSAGE_TIMESTAMP DESC LIMIT 1" | awk {'print $1'} | sed '4!d'`
  else
  if [[ -z "$1" ]]; then
-  echo "Input is Empty"; else
-  echo "Input is $1"; jobuc=$1;
+  echo "Input is Empty" >>$log; else
+  echo "Input is $1" >>$log; jobuc=$1;
  fi
 fi
 
@@ -122,7 +125,7 @@ if [[ -z "$jobuc" ]]
   sleep 10
   jobuc=`cat $out |grep CPC1221 | awk {'print $3'}`
  else
-  echo "Job information provided skipping Save"
+  echo "Job information provided skipping Save" >>$log
 fi
 
 echo "Setting Lower case job information" >>$log 
@@ -158,7 +161,10 @@ if [[ "$?" == '1' ]]
 fi
 
 echo "Display of Job log for job $jobuc" >>$log
-catsplf -j $jobuc QPJOBLOG 1 | sed '/5770SS1/d; /Job name/d; /Job description/d; /MSGID/d; /To module/d; /To procedure/d; /Statement ./d; /From module/d; /From procedure/d' >$file1
+job="'"$jobuc"'"
+splnum=`db2 "SELECT SPOOLED_FILE_NAME, FILE_NUMBER FROM QSYS2.OUTPUT_QUEUE_ENTRIES WHERE JOB_NAME=$job" | grep QPJOBLOG | awk {'print $2'}`
+catsplf -j $jobuc QPJOBLOG $splnum | sed '/5770SS1/d; /Job name/d; /Job description/d; /MSGID/d; /To module/d; /To procedure/d; /Statement ./d; /From module/d; /From procedure/d' >$file1
+
 cat $file1 | sed '
 /^[ ][A-Z]/{
 x
@@ -188,29 +194,26 @@ fileatt=''
 
 echo $fileatt
 if [[ "$hstlogresult" == '1' ]]
- then echo "No Histroy log information found matching critera"
+ then echo "No Histroy log information found matching critera" >>$log
  else fileatt="$fileatt ($hstlog *OCTET *TXT)"
 fi
 if [[ "$brmlogresult" == '1' ]]
- then echo "No BRMS Log information found matching critera"
+ then echo "No BRMS Log information found matching critera" >>$log
  else fileatt="$fileatt ($brmlog *OCT *TXT)"
 fi
 if [[ -s "$joblog" ]]
  then fileatt="$fileatt ($joblog *OCT *TXT)"
- else echo "No Job log information found matching critera"
+ else echo "No Job log information found matching critera" >>$log
 fi
 if [[ -s "$file1" ]]
  then fileatt="$fileatt ($file1 *OCT *TXT)"
- else echo "No Job log information found"
+ else echo "No Job log information found" >>$log
 fi
 if [[ -z "$fileatt" ]]
- then echo "No informaton found. Assuming job completed without errors and is no longer on the system"
+ then echo "No informaton found. Assuming job completed without errors and is no longer on the system" >>$log
  exit
- else echo "Information found sending email"
+ else echo "Information found sending email" >>$log
 fi
-
-
-for fn in $tellme; do echo Number of times $fn occures " " |tr -d '\n'; grep $fn dsjoblog.txt | wc -l; done
 
 # List number of times each MSGID appers in Job Log
 cat $file2 | cut -c'2-8','37-38'| sort | uniq | egrep -v NONE |sed 's/./& /7'| awk '{print $1" "$2}'| sed '/^[ ]/d'| while read a b
@@ -236,3 +239,5 @@ cat $brmlog >> $archivebrmlog
 # 2021-12-22 Added several tmp files. Removed 2nd level text from SQL queries for BRM and HST log.
 #            Created archive files for future global logging and reporting
 # 2021-12-27 Added MSGIDLIST count process
+# 2021-12-30 Added process to find Spool file number based on jobuc
+#            Added additional logging
