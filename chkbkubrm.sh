@@ -1,22 +1,22 @@
-# @(#) Version 2022.01.19
+# @(#) Version 2022.01.22
 #
 # When calling this program you have the option to pass the parms of
 # LAST This will query the BRMS database for the last save job that has run. Example chkbkubrm.sh LAST
 # Specific job information. Example chkbkubrm.sh 123456/USER/WEEKLY
 # CTLG + Name of BRMS control group and that save will run now. Example chkbkubrm.sh CTLG WEEKLY
 
-# IFS working directory. Location of script and assocated files
-ifsdir='/scripts/chkbrmbku'
+# IFS working directory. Location of script and associated files
+ifsdir='/scripts/chkbkubrm'
 cd $ifsdir
 # Setting path
-export PATH=/QOpenSys/pkgs/bin:/QOpenSys/usr/bin:/usr/bin
+export PATH=/QOpenSys/usr/bin:/usr/bin
 
 # Vars
-log=strbkubrm.log                #Main log file for this job
-out=strbkubrm.out                #Used to capture the job information
-job=''                           #Auto generated later. Adds single quotes around jobuc for SQL statments
-jobuc=''                         #Upper case job information used in SQL statments
-joblc=''                         #Lower case job informaton used in qsh statments
+log=chkbkubrm.log                #Main log file for this job
+out=chkbkubrm.out                #Used to capture the job information
+job=''                           #Auto generated later. Adds single quotes around jobuc for SQL statements
+jobuc=''                         #Upper case job information used in SQL statements
+joblc=''                         #Lower case job information used in qsh statements
 splnum=''                        #Auto generated lower in the script. Finds the Spool File Number for jobuc
 file1=fulljoblog.txt             #Spool file with junk removed from it
 file2=dsjoblog.txt               #Spool file with junk removed and blank spaces added before each MSGID
@@ -34,9 +34,9 @@ msgidlist=msgidlist.txt          #List of all MSGIDs found in joblog
 
 
 # Special Vars 
-emaillist="('email.address1@example.com')"
-#emaillist="('email.address1@example.com') ('email.address2@example.com')"  #Example of multipal email address format
-numdays='1'                                                                 #Number of days to search logs for job. Greater the number the more expensive the SQL quieries.
+emaillist="('ryan.cooper@siriuscom.com')"
+#emaillist="('email.address1@example.com') ('email.address2@example.com')"  #Example of multiple email address format
+numdays='1'                                                                 #Number of days to search logs for job. Greater the number the more expensive the SQL queries.
 omitjoblog="CPF0000"                                                        #MSGIDs to ignore from the Job Log
 #omitjoblog="BRM10A1|BRM14A1|BRM15A7|CPC2402|CPFA09E|CPD37C3|CPD384E"       #Example MSGIDs to ignore from the Job Log
 joblogsev='10'                                                              #Severity filter for the Job Log
@@ -78,7 +78,7 @@ touch $ifsdir/$joblogtmp
 touch $ifsdir/$msgidlist
 touch $ifsdir/$msgidtmp
 
-# Setting prefereed CCSIDs
+# Setting preferred CCSIDs
 setccsid 1208 $ifsdir/$log
 setccsid 1208 $ifsdir/$out
 setccsid 1208 $ifsdir/$file1
@@ -157,23 +157,23 @@ done
 echo "Job $joblc has completed" >>$log
 /usr/bin/ps -e | grep $joblc >>$log
 
-echo "Display of history log for Job $jobuc sev X or greater" >>$log
+echo "Display of history log for Job $jobuc sev $hstlogsev or greater" >>$log
 # Optionally add MESSAGE_SECOND_LEVEL_TEXT to below SQL statement
 db2 "SELECT MESSAGE_ID, SEVERITY, MESSAGE_TIMESTAMP, FROM_JOB, MESSAGE_TEXT FROM table(qsys2.history_log_info(CURRENT TIMESTAMP - $numdays DAY)) WHERE FROM_JOB ='$jobuc' AND MESSAGE_ID NOT IN("$omithstlog") AND SEVERITY >=$hstlogsev" >>$hstlog
 if [[ "$?" == '1' ]]
  then hstlogresult='1'
- else tac $hstlog | sed 1,3d | tac | sed 1,2d | sed '/-----/d' | sed 's/       //g' > $hstlogtmp && cp $hstlogtmp $hstlog
+ else cat $hstlog | sed 1,2d | sed '/-----/d' | sed 's/       //g' | grep -v '(S)' | sed '/^$/d' > $hstlogtmp && cp $hstlogtmp $hstlog
 fi
 
-echo "Display of BRMS LOG for job $jobuc Sev X or greater" >>$log
+echo "Display of brms log for job $jobuc sev $brmlogsev or greater" >>$log
 # Optionally add MESSAGE_SECOND_LEVEL_TEXT to below SQL statement
 db2 "SELECT MESSAGE_ID, MESSAGE_SEVERITY, QUALIFIED_JOB_NAME, CONTROL_GROUP, MESSAGE_TEXT FROM QUSRBRM.BRMS_LOG_INFO WHERE QUALIFIED_JOB_NAME='$jobuc' AND MESSAGE_ID NOT IN("$omitbrmlog") AND SEVERITY >=$brmlogsev" >>$brmlog
 if [[ "$?" == '1' ]]
  then brmlogresult='1'
- else tac $brmlog | sed 1,3d | tac | sed 1,2d | sed '/-----/d' | sed 's/       //g' > $brmlogtmp && cp $brmlogtmp $brmlog
+ else cat $brmlog | sed 1,2d | sed '/-----/d' | sed 's/       //g' | grep -v '(S)' | sed '/^$/d' > $brmlogtmp && cp $brmlogtmp $brmlog
 fi
 
-echo "Display of Job log for job $jobuc" >>$log
+echo "Display of job log for job $jobuc sev $joblogsev or greater" >>$log
 job="'"$jobuc"'"
 echo "job set as $job" >>$log
 splnum=`db2 "SELECT SPOOLED_FILE_NAME, FILE_NUMBER FROM QSYS2.OUTPUT_QUEUE_ENTRIES WHERE JOB_NAME=$job" | grep QPJOBLOG | awk {'print $2'}`
@@ -194,7 +194,7 @@ x
 }
 h' >$file2
 
-# Returns paragraph if SEV is greater then X and Omits MSGIDs defined above
+# Returns paragraph if SEV is greater than X and Omits MSGIDs defined above
 pgraph() {
 sed -e '/./{H;$!d;}' -e "x;/$1/!d" $file2 >>$joblog
 }
@@ -210,34 +210,34 @@ fileatt=''
 
 echo $fileatt
 if [[ "$hstlogresult" == '1' ]]
- then echo "No Histroy log information found matching critera" >>$log
+ then echo "No History log information found matching criteria" >>$log
  else fileatt="$fileatt ($hstlog *OCTET *TXT)"
 fi
 if [[ "$brmlogresult" == '1' ]]
- then echo "No BRMS Log information found matching critera" >>$log
+ then echo "No BRMS Log information found matching criteria" >>$log
  else fileatt="$fileatt ($brmlog *OCT *TXT)"
 fi
 if [[ -s "$joblog" ]]
  then fileatt="$fileatt ($joblog *OCT *TXT)"
- else echo "No Job log information found matching critera" >>$log
+ else echo "No Job log information found matching criteria" >>$log
 fi
 if [[ -s "$file1" ]]
  then fileatt="$fileatt ($file1 *OCT *TXT)"
  else echo "No Job log information found" >>$log
 fi
 if [[ -z "$fileatt" ]]
- then echo "No informaton found. Assuming job completed without errors and is no longer on the system" >>$log
+ then echo "No information found. Assuming job completed without errors and is no longer on the system" >>$log
  exit
  else echo "Information found sending email" >>$log
  fileatt="$fileatt ($msgidlist *OCT *TXT)"
 fi
 
-# List number of times each MSGID appers in Job Log
+# List number of times each MSGID appears in Job Log
 cat $file2 | cut -c'2-8','37-38'| sort | uniq | egrep -v NONE |sed 's/./& /7'| awk '{print $1" "$2}'| sed '/^[ ]/d'| while read a b
 do
-echo Number of times $a with Severity $b occures " " |tr -d '\n' >>$msgidtmp; grep $a $file2 | wc -l  >>$msgidtmp
+echo Number of times $a with Severity $b occurs " " |tr -d '\n' >>$msgidtmp; grep $a $file2 | wc -l  >>$msgidtmp
 done
-cat $msgidtmp | sort -k7 -r >$msgidlist
+cat $msgidtmp | sort -k7 | sed '1!G;h;$!d' >$msgidlist
 
 # Scrub of files before emailing
 echo "Messages $hstlogsev or greater only" >>$hstlog
@@ -249,7 +249,7 @@ echo "Filtering the following Message IDs $omitjoblog" >>$joblog
 
 system "SNDSMTPEMM RCP($emaillist) SUBJECT('BRMS logs') NOTE('BRMS logs') ATTACH($fileatt)"
 
-# Copy current informtion into archive logs
+# Copy current information into archive logs
 cat $joblog >> $archivejoblog
 cat $hstlog >> $archivehstlog
 cat $brmlog >> $archivebrmlog
@@ -257,15 +257,18 @@ cat $brmlog >> $archivebrmlog
 # Change log YYYY-MM-DD
 # 2021-12-20 Start of Change log and Version 2021.12.20
 # 2021-12-21 Added checks for empty files and no result sets
-#            If found exclued them from the Email.
+#            If found exclude them from the Email.
 # 2021-12-22 Added several tmp files. Removed 2nd level text from SQL queries for BRM and HST log.
 #            Created archive files for future global logging and reporting
 # 2021-12-27 Added MSGIDLIST count process
 # 2021-12-30 Added process to find Spool file number based on jobuc
 #            Added additional logging
-# 2021-12-31 Added MSGIDLIST to email, appended filters to each attachement, cleaned up hstlog and brmlog
+# 2021-12-31 Added MSGIDLIST to email, appended filters to each attachment, cleaned up hstlog and brmlog
 #            Changed head to tac
 # 2022-01-11 Added PATH setting. Changed SQL commands to use numdays var.
 # 2022-01-19 Small change to the for loop syntax on the Checking for BRMS SQL Services section
 #            Change to the submit job command, Change PARM to be required, added BRMS CTLG as PARM
-#            Added extra echo statments to the log, hard coded path to ps command in /usr/bin
+#            Added extra echo statements to the log, hard coded path to ps command in /usr/bin
+# 2022-01-22 Removed tac and head options.  They were being used in /QOpenSys/pkgs/bin provided by newer oss environment.
+#            Changed the sort -k command -r is only provided by said oss.  added sed command to print in reverse order
+#            Changed file name for log and out to match that of script name. Changes some working in some echo commands
