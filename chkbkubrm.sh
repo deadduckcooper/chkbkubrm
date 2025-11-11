@@ -1,4 +1,4 @@
-# @(#) Version 2021.12.31
+# @(#) Version 2022.01.11
 #
 # When calling this program you have the option to pass the parms of
 # LAST This will query the BRMS database for the last save job that has run
@@ -6,7 +6,9 @@
 # No parm assumes you are specifing a BRMS control group as var ctlg within this script below and that save will run now.
 
 # IFS working directory. Location of script and assocated files
-ifsdir=`pwd`
+ifsdir='/scripts'
+# Setting path
+export PATH=/QOpenSys/pkgs/bin:/QOpenSys/usr/bin:/usr/bin:$PATH
 
 # Vars
 ctlg=RYAN                        #Name of BRMS Control Group to run
@@ -34,7 +36,7 @@ msgidlist=msgidlist.txt          #List of all MSGIDs found in joblog
 # Special Vars 
 emaillist="('ryan.cooper@siriuscom.com')"
 #emaillist="('email.address1@example.com') ('email.address2@example.com')"  #Example of multipal email address format
-numdays='1'                                                                 #Number of days to search BRMS history for last save job
+numdays='1'                                                                 #Number of days to search logs for job. Greater the number the more expensive the SQL quieries.
 omitjoblog="BRM10A1|BRM14A1|BRM15A7|CPC2402|CPD37C3"                        #MSGIDs to ignore from the Job Log
 #omitjoblog="BRM10A1|BRM14A1|BRM15A7|CPC2402|CPFA09E|CPD37C3|CPD384E"       #Example MSGIDs to ignore from the Job Log
 joblogsev='20'                                                              #Severity filter for the Job Log
@@ -146,7 +148,7 @@ ps -e | grep $joblc >>$log
 
 echo "Display of history log for Job $jobuc sev X or greater" >>$log
 # Optionally add MESSAGE_SECOND_LEVEL_TEXT to below SQL statement
-db2 "SELECT MESSAGE_ID, SEVERITY, MESSAGE_TIMESTAMP, FROM_JOB, MESSAGE_TEXT FROM table(qsys2.history_log_info()) WHERE FROM_JOB ='$jobuc' AND MESSAGE_ID NOT IN("$omithstlog") AND SEVERITY >=$hstlogsev" >>$hstlog
+db2 "SELECT MESSAGE_ID, SEVERITY, MESSAGE_TIMESTAMP, FROM_JOB, MESSAGE_TEXT FROM table(qsys2.history_log_info(CURRENT TIMESTAMP - $numdays DAY)) WHERE FROM_JOB ='$jobuc' AND MESSAGE_ID NOT IN("$omithstlog") AND SEVERITY >=$hstlogsev" >>$hstlog
 if [[ "$?" == '1' ]]
  then hstlogresult='1'
  else tac $hstlog | sed 1,3d | tac | sed 1,2d | sed '/-----/d' | sed 's/       //g' > $hstlogtmp && cp $hstlogtmp $hstlog
@@ -249,3 +251,4 @@ cat $brmlog >> $archivebrmlog
 #            Added additional logging
 # 2021-12-31 Added MSGIDLIST to email, appended filters to each attachement, cleaned up hstlog and brmlog
 #            Changed head to tac
+# 2022-01-11 Added PATH setting. Changed SQL commands to use numdays var.
