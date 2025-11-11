@@ -1,4 +1,4 @@
-# @(#) Version 2023.06.21
+# @(#) Version 2024.07.31
 #
 # When calling this program you have the option to pass the parms of
 # LAST This will query the BRMS database for the last save job that has run. Example chkbkubrm.sh LAST
@@ -140,7 +140,7 @@ echo "$LINENO"
 echo "Checking job information override" >>$log
 if [[ "$1" == 'LAST' ]]
  then
-  jobuc=`db2 "SELECT DISTINCT QUALIFIED_JOB_NAME, MESSAGE_TIMESTAMP FROM QUSRBRM.BRMS_LOG_INFO WHERE AREA ='BACKUP' AND MESSAGE_TIMESTAMP >= current timestamp - $numdays day ORDER BY MESSAGE_TIMESTAMP DESC LIMIT 1" | awk {'print $1'} | sed '4!d'`
+  jobuc=`db2 "SELECT DISTINCT QUALIFIED_JOB_NAME, MESSAGE_TIMESTAMP FROM QUSRBRM.BRMS_LOG_INFO WHERE AREA ='BACKUP' AND CONTROL_GROUP IS NOT NULL AND MESSAGE_TIMESTAMP >= current timestamp - $numdays day ORDER BY MESSAGE_TIMESTAMP DESC LIMIT 1" | awk {'print $1'} | sed '4!d'`
    if test $? == 1
     then echo "Last job information not found in the last $numdays. Exiting script" >>$log
     exit
@@ -315,3 +315,4 @@ echo "$LINENO"
 # 2022-01-24 Added exit if jobuc not found, Added echo of LINENO
 # 2023-06-21 Moved output files to subdir
 #            Change file vars to include full path. added single quotes on the fileatt vars.
+# 2024-07-31 Added check for CONTROL_GROUP IS NOT NULL
