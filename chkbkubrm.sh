@@ -1,4 +1,4 @@
-# @(#) Version 2022.01.24
+# @(#) Version 2023.06.21
 #
 # When calling this program you have the option to pass the parms of
 # LAST This will query the BRMS database for the last save job that has run. Example chkbkubrm.sh LAST
@@ -12,26 +12,28 @@ cd $ifsdir
 export PATH=/QOpenSys/usr/bin:/usr/bin
 
 # Vars
-log=chkbkubrm.log                #Main log file for this job
-out=chkbkubrm.out                #Used to capture the job information
+tempdir=$ifsdir/temp
+archivedir=$ifsdir/archive
+outputdir=$ifsdir/output
+log=$tempdir/chkbkubrm.log                #Main log file for this job
+out=$tempdir/chkbkubrm.out                #Used to capture the job information
 job=''                           #Auto generated later. Adds single quotes around jobuc for SQL statements
 jobuc=''                         #Upper case job information used in SQL statements
 joblc=''                         #Lower case job information used in qsh statements
 splnum=''                        #Auto generated lower in the script. Finds the Spool File Number for jobuc
-file1=fulljoblog.txt             #Spool file with junk removed from it
-file2=dsjoblog.txt               #Spool file with junk removed and blank spaces added before each MSGID
-joblog=joblog.txt                #Job Log results
-joblogtmp=joblog.tmp             #Temp file
-archivejoblog=archivejoblog.txt  #Historical archive Job Log
-hstlog=hstlog.txt                #History Log results
-hstlogtmp=hstlog.tmp             #Temp file
-archivehstlog=archivehstlog.txt  #Historical archive History Log
-brmlog=brmlog.txt                #Display BRM LOG results
-brmlogtmp=brmlog.tmp             #Temp file
-archivebrmlog=archivebrmlog.txt  #Historical archive BRMS Log
-msgidtmp=msgidtmp.tmp            #Temp list of all MSGIDs found in job log
-msgidlist=msgidlist.txt          #List of all MSGIDs found in joblog
-
+file1=$outputdir/fulljoblog.txt             #Spool file with junk removed from it
+file2=$tempdir/dsjoblog.txt               #Spool file with junk removed and blank spaces added before each MSGID
+joblog=$outputdir/joblog.txt                #Job Log results
+joblogtmp=$tempdir/joblog.tmp             #Temp file
+archivejoblog=$archivedir/archivejoblog.txt  #Historical archive Job Log
+hstlog=$outputdir/hstlog.txt                #History Log results
+hstlogtmp=$tempdir/hstlog.tmp             #Temp file
+archivehstlog=$archivedir/archivehstlog.txt  #Historical archive History Log
+brmlog=$outputdir/brmlog.txt                #Display BRM LOG results
+brmlogtmp=$tempdir/brmlog.tmp             #Temp file
+archivebrmlog=$archivedir/archivebrmlog.txt  #Historical archive BRMS Log
+msgidtmp=$tempdir/msgidtmp.tmp            #Temp list of all MSGIDs found in job log
+msgidlist=$outputdir/msgidlist.txt          #List of all MSGIDs found in joblog
 
 # Special Vars 
 emaillist="('ryan.cooper@siriuscom.com')"
@@ -47,56 +49,70 @@ omitbrmlog="'CPF0000'"                                                      #MSG
 #omitbrmlog="'BRM14A1','BRM10A1'"                                           #Example MSGIDs to ignore from the BRMS Log
 brmlogsev='10'                                                              #Severity filter for the BRMS Log
 
+# Setup directory structure
+mkdir -p $archivedir
+mkdir -p $tempdir
+mkdir -p $outputdir
+
 # Cleanup of previous runs
-rm $ifsdir/$log
-rm $ifsdir/$out
-rm $ifsdir/$file1
-rm $ifsdir/$file2
-rm $ifsdir/$hstlog
-rm $ifsdir/$brmlog
-rm $ifsdir/$joblog
-rm $ifsdir/$hstlogtmp
-rm $ifsdir/$brmlogtmp
-rm $ifsdir/$joblogtmp
-rm $ifsdir/$msgidlist
-rm $ifsdir/$msgidtmp
+rm $log
+rm $out
+rm $file1
+rm $file2
+rm $hstlog
+rm $brmlog
+rm $joblog
+rm $hstlogtmp
+rm $brmlogtmp
+rm $joblogtmp
+rm $msgidlist
+rm $msgidtmp
 
 # Creating new files
-touch $ifsdir/$log
-touch $ifsdir/$out
-touch $ifsdir/$file1
-touch $ifsdir/$file2
-touch $ifsdir/$hstlog
-touch $ifsdir/$brmlog
-touch $ifsdir/$joblog
-touch $ifsdir/$archivejoblog
-touch $ifsdir/$archivehstlog
-touch $ifsdir/$archivebrmlog
-touch $ifsdir/$hstlogtmp
-touch $ifsdir/$brmlogtmp
-touch $ifsdir/$joblogtmp
-touch $ifsdir/$msgidlist
-touch $ifsdir/$msgidtmp
+touch $log
+touch $out
+touch $file1
+touch $file2
+touch $hstlog
+touch $brmlog
+touch $joblog
+touch $archivejoblog
+touch $archivehstlog
+touch $archivebrmlog
+touch $hstlogtmp
+touch $brmlogtmp
+touch $joblogtmp
+touch $msgidlist
+touch $msgidtmp
 
 # Setting preferred CCSIDs
-setccsid 1208 $ifsdir/$log
-setccsid 1208 $ifsdir/$out
-setccsid 1208 $ifsdir/$file1
-setccsid 1208 $ifsdir/$file2
-setccsid 1208 $ifsdir/$hstlog
-setccsid 1208 $ifsdir/$brmlog
-setccsid 1208 $ifsdir/$joblog
-setccsid 1208 $ifsdir/$archivejoblog
-setccsid 1208 $ifsdir/$archivehstlog
-setccsid 1208 $ifsdir/$archivebrmlog
-setccsid 1208 $ifsdir/$hstlogtmp
-setccsid 1208 $ifsdir/$brmlogtmp
-setccsid 1208 $ifsdir/$joblogtmp
-setccsid 1208 $ifsdir/$msgidlist
-setccsid 1208 $ifsdir/$msgidtmp
+setccsid 1208 $log
+setccsid 1208 $out
+setccsid 1208 $file1
+setccsid 1208 $file2
+setccsid 1208 $hstlog
+setccsid 1208 $brmlog
+setccsid 1208 $joblog
+setccsid 1208 $archivejoblog
+setccsid 1208 $archivehstlog
+setccsid 1208 $archivebrmlog
+setccsid 1208 $hstlogtmp
+setccsid 1208 $brmlogtmp
+setccsid 1208 $joblogtmp
+setccsid 1208 $msgidlist
+setccsid 1208 $msgidtmp
 
 date >$log
 echo "$LINENO"
+
+########## Check for unsupported CCSID of current job ##########
+ccsid=`system "DSPJOB" | grep 'Coded' | awk {'print $18'}`
+if test $ccsid == 65535
+then echo ccsid is set to unsupported value of $ccsid exiting script. >>$log
+echo "CCSID is set to $ccsid change this value to 37 and try again."
+exit
+else echo ccsid value $ccsid is good. >>$log
+fi
 
 # Checking for required PARM
 if [[ -z "$1" ]]
@@ -231,25 +247,25 @@ echo "$LINENO"
 echo $fileatt
 if [[ "$hstlogresult" == '1' ]]
  then echo "No History log information found matching criteria" >>$log
- else fileatt="$fileatt ($hstlog *OCTET *TXT)"
+ else fileatt="$fileatt ('$hstlog' *OCTET *TXT)"
 fi
 if [[ "$brmlogresult" == '1' ]]
  then echo "No BRMS Log information found matching criteria" >>$log
- else fileatt="$fileatt ($brmlog *OCT *TXT)"
+ else fileatt="$fileatt ('$brmlog' *OCT *TXT)"
 fi
 if [[ -s "$joblog" ]]
- then fileatt="$fileatt ($joblog *OCT *TXT)"
+ then fileatt="$fileatt ('$joblog' *OCT *TXT)"
  else echo "No Job log information found matching criteria" >>$log
 fi
 if [[ -s "$file1" ]]
- then fileatt="$fileatt ($file1 *OCT *TXT)"
+ then fileatt="$fileatt ('$file1' *OCT *TXT)"
  else echo "No Job log information found" >>$log
 fi
 if [[ -z "$fileatt" ]]
  then echo "No information found. Assuming job completed without errors and is no longer on the system" >>$log
  exit
  else echo "Information found sending email" >>$log
- fileatt="$fileatt ($msgidlist *OCT *TXT)"
+ fileatt="$fileatt ('$msgidlist' *OCT *TXT)"
 fi
 echo "$LINENO"
 
@@ -297,3 +313,5 @@ echo "$LINENO"
 #            Changed the sort -k command -r is only provided by said oss.  added sed command to print in reverse order
 #            Changed file name for log and out to match that of script name. Changes some working in some echo commands
 # 2022-01-24 Added exit if jobuc not found, Added echo of LINENO
+# 2023-06-21 Moved output files to subdir
+#            Change file vars to include full path. added single quotes on the fileatt vars.
