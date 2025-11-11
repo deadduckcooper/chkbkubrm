@@ -5,7 +5,7 @@ A Unique way to report on the results of a BRMS save job on an IBM i system by f
 I created this script around the year 2021 to save time seaching thru job logs for problems, and noticing operations staff missing problems. This script is intended to run after each BRMS save job either as an *EXIT at the end of the control group. However I have seen people run it from the scheduler and manually. This script could also be used to search any job log, not just a BRMS save job log.
 
 ## Warning
-This is my first time using git and at the time of writing this im not sure how you will download this to the IFS of an IBM i system.  The instructions below were created well before git was involved and assumed someone manually transfering the script to the IFS.
+This is my first time using git. The instructions below were created assumed someone manually transfered the script to the IFS.
 
 ## Instructions
 When calling this program you have the option to pass the parms of
