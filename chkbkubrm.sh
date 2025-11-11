@@ -1,4 +1,4 @@
-# @(#) Version 2022.01.22
+# @(#) Version 2022.01.24
 #
 # When calling this program you have the option to pass the parms of
 # LAST This will query the BRMS database for the last save job that has run. Example chkbkubrm.sh LAST
@@ -96,6 +96,7 @@ setccsid 1208 $ifsdir/$msgidlist
 setccsid 1208 $ifsdir/$msgidtmp
 
 date >$log
+echo "$LINENO"
 
 # Checking for required PARM
 if [[ -z "$1" ]]
@@ -105,6 +106,7 @@ if [[ -z "$1" ]]
  else
   echo " PARM $1 $2 was provided" >>$log
 fi
+echo "$LINENO"
 
 echo "Checking for BRMS SQL Services enabled" >>$log
 system "DSPOBJD OBJ(QUSRBRM/LOG_INFO) OBJTYPE(*FILE)" >>/dev/null
@@ -117,15 +119,22 @@ if test $? == 1
   fi
  else echo "BRMS SQL Services already enabled" >>$log
 fi
+echo "$LINENO"
 
 echo "Checking job information override" >>$log
 if [[ "$1" == 'LAST' ]]
  then
   jobuc=`db2 "SELECT DISTINCT QUALIFIED_JOB_NAME, MESSAGE_TIMESTAMP FROM QUSRBRM.BRMS_LOG_INFO WHERE AREA ='BACKUP' AND MESSAGE_TIMESTAMP >= current timestamp - $numdays day ORDER BY MESSAGE_TIMESTAMP DESC LIMIT 1" | awk {'print $1'} | sed '4!d'`
+   if test $? == 1
+    then echo "Last job information not found in the last $numdays. Exiting script" >>$log
+    exit
+    else echo "Job $jobuc found" >>$log
+   fi 
   echo "jobuc set as $jobuc" >>$log
  else
   echo "Input is $1" >>$log; jobuc=$1
 fi
+echo "$LINENO"
 
 # Check for BRMS CTLG as $2
 echo "Checking for BRMS Control Group parm" >>$log
@@ -139,13 +148,16 @@ if [[ "$1" == 'CTLG' ]]
  else
   echo "BRMS Control Group not provided skipping Save" >>$log
 fi
+echo "$LINENO"
 
 echo "Setting Lower case job information" >>$log 
 joblc=`echo "$jobuc" | tr 'A-Z' 'a-z'`
 echo "joblc set as $joblc" >>$log
+echo "$LINENO"
 
 echo "Checking for active job $joblc" >>$log
 /usr/bin/ps -e | grep $joblc >>$log
+echo "$LINENO"
 
 while /usr/bin/ps -e | grep $joblc
   do
@@ -153,9 +165,11 @@ while /usr/bin/ps -e | grep $joblc
   echo "Job $joblc is still running, Checking again later" >>$log
   sleep 10
 done
+echo "$LINENO"
 
 echo "Job $joblc has completed" >>$log
 /usr/bin/ps -e | grep $joblc >>$log
+echo "$LINENO"
 
 echo "Display of history log for Job $jobuc sev $hstlogsev or greater" >>$log
 # Optionally add MESSAGE_SECOND_LEVEL_TEXT to below SQL statement
@@ -164,6 +178,7 @@ if [[ "$?" == '1' ]]
  then hstlogresult='1'
  else cat $hstlog | sed 1,2d | sed '/-----/d' | sed 's/       //g' | grep -v '(S)' | sed '/^$/d' > $hstlogtmp && cp $hstlogtmp $hstlog
 fi
+echo "$LINENO"
 
 echo "Display of brms log for job $jobuc sev $brmlogsev or greater" >>$log
 # Optionally add MESSAGE_SECOND_LEVEL_TEXT to below SQL statement
@@ -172,6 +187,7 @@ if [[ "$?" == '1' ]]
  then brmlogresult='1'
  else cat $brmlog | sed 1,2d | sed '/-----/d' | sed 's/       //g' | grep -v '(S)' | sed '/^$/d' > $brmlogtmp && cp $brmlogtmp $brmlog
 fi
+echo "$LINENO"
 
 echo "Display of job log for job $jobuc sev $joblogsev or greater" >>$log
 job="'"$jobuc"'"
@@ -180,6 +196,7 @@ splnum=`db2 "SELECT SPOOLED_FILE_NAME, FILE_NUMBER FROM QSYS2.OUTPUT_QUEUE_ENTRI
 echo "splnum set as $splnum" >>$log
 echo "catsplf -j $jobuc QPJOBLOG $splnum" >>$log
 catsplf -j $jobuc QPJOBLOG $splnum | sed '/5770SS1/d; /Job name/d; /Job description/d; /MSGID/d; /To module/d; /To procedure/d; /Statement ./d; /From module/d; /From procedure/d' >$file1
+echo "$LINENO"
 
 cat $file1 | sed '
 /^[ ][A-Z]/{
@@ -193,20 +210,23 @@ x
 x
 }
 h' >$file2
+echo "$LINENO"
 
 # Returns paragraph if SEV is greater than X and Omits MSGIDs defined above
 pgraph() {
 sed -e '/./{H;$!d;}' -e "x;/$1/!d" $file2 >>$joblog
 }
+echo "$LINENO"
 
 cat $file2 | egrep "^[ ][A-Z]" | egrep -v $omitjoblog | awk -vm=${joblogsev} '$3 >= m' | awk '{ print $1 }' | sort | uniq | while read a
 do
 pgraph $a
 done
-
+echo "$LINENO"
 
 # Check for empty logs to exclude from email
 fileatt=''
+echo "$LINENO"
 
 echo $fileatt
 if [[ "$hstlogresult" == '1' ]]
@@ -231,6 +251,7 @@ if [[ -z "$fileatt" ]]
  else echo "Information found sending email" >>$log
  fileatt="$fileatt ($msgidlist *OCT *TXT)"
 fi
+echo "$LINENO"
 
 # List number of times each MSGID appears in Job Log
 cat $file2 | cut -c'2-8','37-38'| sort | uniq | egrep -v NONE |sed 's/./& /7'| awk '{print $1" "$2}'| sed '/^[ ]/d'| while read a b
@@ -238,6 +259,7 @@ do
 echo Number of times $a with Severity $b occurs " " |tr -d '\n' >>$msgidtmp; grep $a $file2 | wc -l  >>$msgidtmp
 done
 cat $msgidtmp | sort -k7 | sed '1!G;h;$!d' >$msgidlist
+echo "$LINENO"
 
 # Scrub of files before emailing
 echo "Messages $hstlogsev or greater only" >>$hstlog
@@ -246,6 +268,7 @@ echo "Messages $brmlogsev or greater only" >>$brmlog
 echo "Filtering the following Message IDs $omitbrmlog" >>$brmlog
 echo "Messages $joblogsev or greater only" >>$joblog
 echo "Filtering the following Message IDs $omitjoblog" >>$joblog
+echo "$LINENO"
 
 system "SNDSMTPEMM RCP($emaillist) SUBJECT('BRMS logs') NOTE('BRMS logs') ATTACH($fileatt)"
 
@@ -253,6 +276,7 @@ system "SNDSMTPEMM RCP($emaillist) SUBJECT('BRMS logs') NOTE('BRMS logs') ATTACH
 cat $joblog >> $archivejoblog
 cat $hstlog >> $archivehstlog
 cat $brmlog >> $archivebrmlog
+echo "$LINENO"
 
 # Change log YYYY-MM-DD
 # 2021-12-20 Start of Change log and Version 2021.12.20
@@ -272,3 +296,4 @@ cat $brmlog >> $archivebrmlog
 # 2022-01-22 Removed tac and head options.  They were being used in /QOpenSys/pkgs/bin provided by newer oss environment.
 #            Changed the sort -k command -r is only provided by said oss.  added sed command to print in reverse order
 #            Changed file name for log and out to match that of script name. Changes some working in some echo commands
+# 2022-01-24 Added exit if jobuc not found, Added echo of LINENO
