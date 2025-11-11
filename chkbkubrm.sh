@@ -1,17 +1,17 @@
-# @(#) Version 2022.01.11
+# @(#) Version 2022.01.19
 #
 # When calling this program you have the option to pass the parms of
-# LAST This will query the BRMS database for the last save job that has run
-# Specific job information. Example 980949/SIRIRDC/RYAN
-# No parm assumes you are specifing a BRMS control group as var ctlg within this script below and that save will run now.
+# LAST This will query the BRMS database for the last save job that has run. Example chkbkubrm.sh LAST
+# Specific job information. Example chkbkubrm.sh 123456/USER/WEEKLY
+# CTLG + Name of BRMS control group and that save will run now. Example chkbkubrm.sh CTLG WEEKLY
 
 # IFS working directory. Location of script and assocated files
-ifsdir='/scripts'
+ifsdir='/scripts/chkbrmbku'
+cd $ifsdir
 # Setting path
-export PATH=/QOpenSys/pkgs/bin:/QOpenSys/usr/bin:/usr/bin:$PATH
+export PATH=/QOpenSys/pkgs/bin:/QOpenSys/usr/bin:/usr/bin
 
 # Vars
-ctlg=RYAN                        #Name of BRMS Control Group to run
 log=strbkubrm.log                #Main log file for this job
 out=strbkubrm.out                #Used to capture the job information
 job=''                           #Auto generated later. Adds single quotes around jobuc for SQL statments
@@ -34,18 +34,18 @@ msgidlist=msgidlist.txt          #List of all MSGIDs found in joblog
 
 
 # Special Vars 
-emaillist="('ryan.cooper@siriuscom.com')"
+emaillist="('email.address1@example.com')"
 #emaillist="('email.address1@example.com') ('email.address2@example.com')"  #Example of multipal email address format
 numdays='1'                                                                 #Number of days to search logs for job. Greater the number the more expensive the SQL quieries.
-omitjoblog="BRM10A1|BRM14A1|BRM15A7|CPC2402|CPD37C3"                        #MSGIDs to ignore from the Job Log
+omitjoblog="CPF0000"                                                        #MSGIDs to ignore from the Job Log
 #omitjoblog="BRM10A1|BRM14A1|BRM15A7|CPC2402|CPFA09E|CPD37C3|CPD384E"       #Example MSGIDs to ignore from the Job Log
-joblogsev='20'                                                              #Severity filter for the Job Log
-omithstlog="'BRM15A7','BRM14A1','BRM10A1'"                                  #MSGIDs to ignore from the History Log
+joblogsev='10'                                                              #Severity filter for the Job Log
+omithstlog="'CPF0000'"                                                      #MSGIDs to ignore from the History Log
 #omithstlog="'BRM14A1','BRM10A1'"                                           #Example MSGIDs to ignore from the History Log
 hstlogsev='10'                                                              #Severity filter for the History Log
-omitbrmlog="'BRM15A7','BRM14A1','BRM10A1','CPC3701'"                        #MSGIDs to ignore from the BRMS Log
+omitbrmlog="'CPF0000'"                                                      #MSGIDs to ignore from the BRMS Log
 #omitbrmlog="'BRM14A1','BRM10A1'"                                           #Example MSGIDs to ignore from the BRMS Log
-brmlogsev='20'                                                              #Severity filter for the BRMS Log
+brmlogsev='10'                                                              #Severity filter for the BRMS Log
 
 # Cleanup of previous runs
 rm $ifsdir/$log
@@ -97,12 +97,21 @@ setccsid 1208 $ifsdir/$msgidtmp
 
 date >$log
 
+# Checking for required PARM
+if [[ -z "$1" ]]
+ then
+  echo "Input is Empty provide a parm next time bye." >>$log
+  exit
+ else
+  echo " PARM $1 $2 was provided" >>$log
+fi
+
 echo "Checking for BRMS SQL Services enabled" >>$log
 system "DSPOBJD OBJ(QUSRBRM/LOG_INFO) OBJTYPE(*FILE)" >>/dev/null
 if test $? == 1
  then system "INZBRM OPTION(*SQLSRVINZ)" >>$log 2>&1
   if test $? == 1
-   then echo "Not able to INZ BRMS for SQL Services, Check PTF prereqs again" >>$log
+   then echo "Not able to INZ BRMS for SQL Services Check PTF prereqs again" >>$log
    exit
    else echo "INZ of BRMS for SQL Services completed" >>$log
   fi
@@ -112,31 +121,33 @@ fi
 echo "Checking job information override" >>$log
 if [[ "$1" == 'LAST' ]]
  then
- jobuc=`db2 "SELECT DISTINCT QUALIFIED_JOB_NAME, MESSAGE_TIMESTAMP FROM QUSRBRM.BRMS_LOG_INFO WHERE AREA ='BACKUP' AND MESSAGE_TIMESTAMP >= current timestamp - $numdays day ORDER BY MESSAGE_TIMESTAMP DESC LIMIT 1" | awk {'print $1'} | sed '4!d'`
+  jobuc=`db2 "SELECT DISTINCT QUALIFIED_JOB_NAME, MESSAGE_TIMESTAMP FROM QUSRBRM.BRMS_LOG_INFO WHERE AREA ='BACKUP' AND MESSAGE_TIMESTAMP >= current timestamp - $numdays day ORDER BY MESSAGE_TIMESTAMP DESC LIMIT 1" | awk {'print $1'} | sed '4!d'`
+  echo "jobuc set as $jobuc" >>$log
  else
- if [[ -z "$1" ]]; then
-  echo "Input is Empty" >>$log; else
-  echo "Input is $1" >>$log; jobuc=$1;
- fi
+  echo "Input is $1" >>$log; jobuc=$1
 fi
 
-if [[ -z "$jobuc" ]]
+# Check for BRMS CTLG as $2
+echo "Checking for BRMS Control Group parm" >>$log
+if [[ "$1" == 'CTLG' ]]
  then
-  echo "No job information provided Running save" >>$log
-  system "STRBKUBRM CTLGRP($ctlg) SBMJOB(*yes)" >$out 2>&1
+ echo "BRMS Control Group provided as $2 Running save" >>$log
+  system "SBMJOB CMD(STRBKUBRM CTLGRP($2) SBMJOB(*NO)) JOB($2)" >$out
   sleep 10
   jobuc=`cat $out |grep CPC1221 | awk {'print $3'}`
+  echo "jobuc set as $jobuc" >>$log
  else
-  echo "Job information provided skipping Save" >>$log
+  echo "BRMS Control Group not provided skipping Save" >>$log
 fi
 
 echo "Setting Lower case job information" >>$log 
 joblc=`echo "$jobuc" | tr 'A-Z' 'a-z'`
+echo "joblc set as $joblc" >>$log
 
 echo "Checking for active job $joblc" >>$log
-ps -e | grep $joblc >>$log
+/usr/bin/ps -e | grep $joblc >>$log
 
-while ps -e | grep $joblc
+while /usr/bin/ps -e | grep $joblc
   do
   date  >>$log
   echo "Job $joblc is still running, Checking again later" >>$log
@@ -144,7 +155,7 @@ while ps -e | grep $joblc
 done
 
 echo "Job $joblc has completed" >>$log
-ps -e | grep $joblc >>$log
+/usr/bin/ps -e | grep $joblc >>$log
 
 echo "Display of history log for Job $jobuc sev X or greater" >>$log
 # Optionally add MESSAGE_SECOND_LEVEL_TEXT to below SQL statement
@@ -164,7 +175,10 @@ fi
 
 echo "Display of Job log for job $jobuc" >>$log
 job="'"$jobuc"'"
+echo "job set as $job" >>$log
 splnum=`db2 "SELECT SPOOLED_FILE_NAME, FILE_NUMBER FROM QSYS2.OUTPUT_QUEUE_ENTRIES WHERE JOB_NAME=$job" | grep QPJOBLOG | awk {'print $2'}`
+echo "splnum set as $splnum" >>$log
+echo "catsplf -j $jobuc QPJOBLOG $splnum" >>$log
 catsplf -j $jobuc QPJOBLOG $splnum | sed '/5770SS1/d; /Job name/d; /Job description/d; /MSGID/d; /To module/d; /To procedure/d; /Statement ./d; /From module/d; /From procedure/d' >$file1
 
 cat $file1 | sed '
@@ -252,3 +266,6 @@ cat $brmlog >> $archivebrmlog
 # 2021-12-31 Added MSGIDLIST to email, appended filters to each attachement, cleaned up hstlog and brmlog
 #            Changed head to tac
 # 2022-01-11 Added PATH setting. Changed SQL commands to use numdays var.
+# 2022-01-19 Small change to the for loop syntax on the Checking for BRMS SQL Services section
+#            Change to the submit job command, Change PARM to be required, added BRMS CTLG as PARM
+#            Added extra echo statments to the log, hard coded path to ps command in /usr/bin
