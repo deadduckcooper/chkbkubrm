@@ -1,4 +1,4 @@
-# @(#) Version 2021.12.30
+# @(#) Version 2021.12.31
 #
 # When calling this program you have the option to pass the parms of
 # LAST This will query the BRMS database for the last save job that has run
@@ -35,15 +35,15 @@ msgidlist=msgidlist.txt          #List of all MSGIDs found in joblog
 emaillist="('ryan.cooper@siriuscom.com')"
 #emaillist="('email.address1@example.com') ('email.address2@example.com')"  #Example of multipal email address format
 numdays='1'                                                                 #Number of days to search BRMS history for last save job
-omitjoblog="'CPF0000'"                                                      #MSGIDs to ignore from the Job Log
-#omitjoblog="BRM10A1|BRM14A1|BRM15A7"                                       #Example MSGIDs to ignore from the Job Log
-joblogsev='10'                                                              #Severity filter for the Job Log
-omithstlog="'CPF0000'"                                                      #MSGIDs to ignore from the History Log
+omitjoblog="BRM10A1|BRM14A1|BRM15A7|CPC2402|CPD37C3"                        #MSGIDs to ignore from the Job Log
+#omitjoblog="BRM10A1|BRM14A1|BRM15A7|CPC2402|CPFA09E|CPD37C3|CPD384E"       #Example MSGIDs to ignore from the Job Log
+joblogsev='20'                                                              #Severity filter for the Job Log
+omithstlog="'BRM15A7','BRM14A1','BRM10A1'"                                  #MSGIDs to ignore from the History Log
 #omithstlog="'BRM14A1','BRM10A1'"                                           #Example MSGIDs to ignore from the History Log
 hstlogsev='10'                                                              #Severity filter for the History Log
-omitbrmlog="'CPF0000'"                                                      #MSGIDs to ignore from the BRMS Log
+omitbrmlog="'BRM15A7','BRM14A1','BRM10A1','CPC3701'"                        #MSGIDs to ignore from the BRMS Log
 #omitbrmlog="'BRM14A1','BRM10A1'"                                           #Example MSGIDs to ignore from the BRMS Log
-brmlogsev='10'                                                              #Severity filter for the BRMS Log
+brmlogsev='20'                                                              #Severity filter for the BRMS Log
 
 # Cleanup of previous runs
 rm $ifsdir/$log
@@ -149,7 +149,7 @@ echo "Display of history log for Job $jobuc sev X or greater" >>$log
 db2 "SELECT MESSAGE_ID, SEVERITY, MESSAGE_TIMESTAMP, FROM_JOB, MESSAGE_TEXT FROM table(qsys2.history_log_info()) WHERE FROM_JOB ='$jobuc' AND MESSAGE_ID NOT IN("$omithstlog") AND SEVERITY >=$hstlogsev" >>$hstlog
 if [[ "$?" == '1' ]]
  then hstlogresult='1'
- else sed '/-----/d' $hstlog > $hstlogtmp && mv $hstlogtmp $hstlog
+ else tac $hstlog | sed 1,3d | tac | sed 1,2d | sed '/-----/d' | sed 's/       //g' > $hstlogtmp && cp $hstlogtmp $hstlog
 fi
 
 echo "Display of BRMS LOG for job $jobuc Sev X or greater" >>$log
@@ -157,7 +157,7 @@ echo "Display of BRMS LOG for job $jobuc Sev X or greater" >>$log
 db2 "SELECT MESSAGE_ID, MESSAGE_SEVERITY, QUALIFIED_JOB_NAME, CONTROL_GROUP, MESSAGE_TEXT FROM QUSRBRM.BRMS_LOG_INFO WHERE QUALIFIED_JOB_NAME='$jobuc' AND MESSAGE_ID NOT IN("$omitbrmlog") AND SEVERITY >=$brmlogsev" >>$brmlog
 if [[ "$?" == '1' ]]
  then brmlogresult='1'
- else sed '/-----/d' $brmlog > $brmlogtmp && mv $brmlogtmp $brmlog
+ else tac $brmlog | sed 1,3d | tac | sed 1,2d | sed '/-----/d' | sed 's/       //g' > $brmlogtmp && cp $brmlogtmp $brmlog
 fi
 
 echo "Display of Job log for job $jobuc" >>$log
@@ -213,6 +213,7 @@ if [[ -z "$fileatt" ]]
  then echo "No informaton found. Assuming job completed without errors and is no longer on the system" >>$log
  exit
  else echo "Information found sending email" >>$log
+ fileatt="$fileatt ($msgidlist *OCT *TXT)"
 fi
 
 # List number of times each MSGID appers in Job Log
@@ -223,7 +224,12 @@ done
 cat $msgidtmp | sort -k7 -r >$msgidlist
 
 # Scrub of files before emailing
-
+echo "Messages $hstlogsev or greater only" >>$hstlog
+echo "Filtering the following Message IDs $omithstlog" >>$hstlog
+echo "Messages $brmlogsev or greater only" >>$brmlog
+echo "Filtering the following Message IDs $omitbrmlog" >>$brmlog
+echo "Messages $joblogsev or greater only" >>$joblog
+echo "Filtering the following Message IDs $omitjoblog" >>$joblog
 
 system "SNDSMTPEMM RCP($emaillist) SUBJECT('BRMS logs') NOTE('BRMS logs') ATTACH($fileatt)"
 
@@ -241,3 +247,5 @@ cat $brmlog >> $archivebrmlog
 # 2021-12-27 Added MSGIDLIST count process
 # 2021-12-30 Added process to find Spool file number based on jobuc
 #            Added additional logging
+# 2021-12-31 Added MSGIDLIST to email, appended filters to each attachement, cleaned up hstlog and brmlog
+#            Changed head to tac
