@@ -16,7 +16,7 @@ When calling this program you have the option to pass the parms of
 ## Tips for Setting the Special Variables
 The key to quickly finding problems in the job log is to properly identify message id's that you don't care about. To do this can take a little bit of time, but once set will save you time, and help you resolve problems with your saves. 
 
-After you have the script in the IFS update your email address in the Special Vars section and run the script as is with no filtering. Review the msgidlist.txt file, this file contains a uniq list of every message id from your saves job log, sorted by severity. Review each message id in the full job log file and decide if that is a message you care to see every time the save completes with errors or fails.  Once done, use your list of message id's you don't care about and set the omitjoblog, omithstlog, and omitbrmlog variables.
+After you have the script in the IFS, update your email address in the Special Vars section and run the script as is with no filtering. Review the msgidlist.txt file, this file contains a uniq list of every message id from your saves job log, sorted by severity. Review each message id in the full job log file and decide if that is a message you care to see every time the save completes with errors or fails.  Once done, use your list of message id's you don't care about and set the omitjoblog, omithstlog, and omitbrmlog variables.
 
 You can also set a severity filter for each as you like. Keep in mind some messages you care about might have a low severity, one such example is listed at the end of this document.
 
